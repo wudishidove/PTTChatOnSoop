@@ -32,9 +32,9 @@ PTTChatOnYoutube - Youtube聊天室顯示PTT推文
 3. 將ptt.js貼到暴力猴腳本取代：
 
 <p align='center'>
-    <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/腳本修改1.png' width='70%'>
+    <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/%E8%85%B3%E6%9C%AC%E4%BF%AE%E6%94%B9.PNG' width='70%'>
 </p>
 
 <p align='center'>
-    <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/腳本修改2.png' width='70%'>
+    <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/%E8%85%B3%E6%9C%AC%E4%BF%AE%E6%94%B92.PNG' width='70%'>
 </p>
