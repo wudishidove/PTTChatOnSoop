@@ -29,7 +29,7 @@ PTTChatOnYoutube - Youtube聊天室顯示PTT推文
 
 1. 安裝[Tampermonkey](https://www.tampermonkey.net/)
 2. 安裝[原始套件](https://greasyfork.org/zh-TW/scripts/418469-pttchatonyt)
-3. 將ptt.js貼到暴力猴腳本取代：
+3. 將[ptt.js](blob:https://github.com/cee67359-487a-4b92-8483-172453b0bb56)貼到暴力猴腳本取代：
 
 <p align='center'>
     <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/%E8%85%B3%E6%9C%AC%E4%BF%AE%E6%94%B9.PNG' width='70%'>
