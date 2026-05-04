@@ -10709,13 +10709,29 @@
     
     const hdfilter = InsFilter('Holodex', /holodex\.net/, 'https://holodex.net', InitHD);
     /* harmony default export */ var holodex_hdfilter = (hdfilter);
+    // CONCATENATED MODULE: ./src/SupportWebsite/sooplive/SoopThemeCheck.js
+
+
+    // SOOP 站台主題偵測：優先讀 <body data-theme="dark|light">，再 fallback 比對 body bg。
+    function SoopThemeCheck() {
+        const dt = (document.body && document.body.getAttribute('data-theme')) || '';
+        if (dt === 'dark') {
+            console.log("Theme color check: SOOP body data-theme='dark', whitetheme = false");
+            return false;
+        }
+        if (dt === 'light') {
+            console.log("Theme color check: SOOP body data-theme='light', whitetheme = true");
+            return true;
+        }
+        return ThemeCheck('body', 'rgb(255, 255, 255)');
+    }
     // CONCATENATED MODULE: ./src/SupportWebsite/sooplive/InitSoopLive.js
-    
-    
-    
+
+
+
     function InitSoopLive(messageposter, siteName) {
         // Check Theme
-  const WhiteTheme = ThemeCheck('body', 'rgb(255, 255, 255)'); 
+  const WhiteTheme = SoopThemeCheck();
   
   // 監聽 DOM 變化，確保聊天元素加載完成後再插入
   const targetNode = document.body;
@@ -10787,7 +10803,7 @@
 
 
     function InitPlaySoopLive(messageposter, siteName) {
-        const WhiteTheme = ThemeCheck('body', 'rgb(255, 255, 255)');
+        const WhiteTheme = SoopThemeCheck();
 
         const targetNode = document.body;
         const config = { childList: true, subtree: true };
