@@ -14,6 +14,11 @@ PTTChatOnYoutube - Youtube聊天室顯示PTT推文
     <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/%E6%93%B7%E5%8F%96.PNG' width='70%'>
 </p>
 
+**最新版本示範 (支援 play.sooplive.com)：**
+<p align='center'>
+    <img src='https://github.com/wudishidove/PTTChatOnSoop/blob/main/soop.JPG?raw=true' width='70%'>
+</p>
+
 ## 支援網站 (點擊項目可跳轉至使用教學)：
 * [Youtube](#youtubetwitch)
 * [Twitch](#youtubetwitch)
