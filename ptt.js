@@ -9,6 +9,7 @@
 // @match             https://hololive.jetri.co/*
 // @match             https://www.twitch.tv/*
 // @match             https://www.sooplive.com/*
+// @match             https://play.sooplive.com/*
 // @match             https://niji-mado.web.app/home
 // @match             https://lin.ee/*
 // @match             https://blank.org/*
@@ -10713,36 +10714,143 @@
     
     
     function InitSoopLive(messageposter, siteName) {
-      // Check Theme
-      const WhiteTheme = ThemeCheck('body', 'rgb(255, 255, 255)'); // run app instance loop
-    
-      (function ChechChatInstanced() {
-        setTimeout(ChechChatInstanced, 1000);
+        // Check Theme
+  const WhiteTheme = ThemeCheck('body', 'rgb(255, 255, 255)'); 
+  
+  // 監聽 DOM 變化，確保聊天元素加載完成後再插入
+  const targetNode = document.body;
+  const config = { childList: true, subtree: true };
+  
+  const observer = new MutationObserver(function(mutationsList, observer) {
+    for (let mutation of mutationsList) {
+      if (mutation.type === 'childList') {
         TryInsChat();
-      })();
+      }
+    }
+  });
+  
+  observer.observe(targetNode, config);
+  
+  // 同時保持原有的定時檢查機制作為備用
+  (function ChechChatInstanced() {
+    setTimeout(ChechChatInstanced, 1000);
+    TryInsChat();
+  })();
     
-      function TryInsChat() {
-        const parent = $('div[mode="Chat"][data-sentry-element="ChatTabWrapper"]');
-        if (false) {}
+        function TryInsChat() {
+    // 更精確地定位到您指定的聊天容器
+    const parent = $('div[mode="Chat"][data-sentry-element="ChatTabWrapper"][data-sentry-component="ChatTab"]');
     
-        if (parent.length > 0) {
-          const PTTApp = $('#PTTChat', parent);
+    console.log('SOOP Live: 搜尋聊天容器，找到', parent.length, '個元素');
     
-          if (PTTApp.length < 1) {
-            parent.css({
-              position: 'relative'
-            });
-            InitApp(parent, WhiteTheme, true, messageposter, siteName);
-            ChangeLog();
-          }
+    if (parent.length > 0) {
+      const PTTApp = $('#PTTChat', parent);
+      console.log('SOOP Live: PTT 應用檢查，已存在:', PTTApp.length > 0);
+
+      if (PTTApp.length < 1) {
+        console.log('SOOP Live: 開始初始化 PTT 聊天應用');
+        // 確保父元素有相對定位
+        parent.css({
+          position: 'relative'
+        });
+        InitApp(parent, WhiteTheme, true, messageposter, siteName);
+        ChangeLog();
+        console.log('SOOP Live: PTT 聊天應用初始化完成');
+      }
+    } else {
+      // 如果找不到主要選擇器，嘗試備用選擇器
+      const fallbackParent = $('div[data-sentry-element="ChatTabWrapper"]');
+      console.log('SOOP Live: 使用備用選擇器，找到', fallbackParent.length, '個元素');
+      
+      if (fallbackParent.length > 0) {
+        const PTTApp = $('#PTTChat', fallbackParent);
+        
+        if (PTTApp.length < 1) {
+          console.log('SOOP Live: 使用備用方案初始化 PTT 聊天應用');
+          fallbackParent.css({
+            position: 'relative'
+          });
+          InitApp(fallbackParent, WhiteTheme, true, messageposter, siteName);
+          ChangeLog();
         }
       }
     }
+  }
+    }
     // CONCATENATED MODULE: ./src/SupportWebsite/sooplive/sooplivefilter.js
-    
-    
+
+
     const sooplivefilter = InsFilter('SoopLive', /www\.sooplive\.com/, 'https://www.sooplive.com/', InitSoopLive);
     /* harmony default export */ var sooplive_sooplivefilter = (sooplivefilter);
+    // CONCATENATED MODULE: ./src/SupportWebsite/sooplive/InitPlaySoopLive.js
+
+
+
+    function InitPlaySoopLive(messageposter, siteName) {
+        const WhiteTheme = ThemeCheck('body', 'rgb(255, 255, 255)');
+
+        const targetNode = document.body;
+        const config = { childList: true, subtree: true };
+
+        const observer = new MutationObserver(function (mutationsList, observer) {
+            for (let mutation of mutationsList) {
+                if (mutation.type === 'childList') {
+                    TryInsChat();
+                }
+            }
+        });
+
+        observer.observe(targetNode, config);
+
+        (function ChechChatInstanced() {
+            setTimeout(ChechChatInstanced, 1000);
+            TryInsChat();
+        })();
+
+        function TryInsChat() {
+            // play.sooplive.com 聊天面板:.chat_title 的父容器
+            const parent = $('.chat_title').parent();
+
+            console.log('Play SOOP Live: 搜尋聊天容器，找到', parent.length, '個元素');
+
+            if (parent.length > 0) {
+                const PTTApp = $('#PTTChat', parent);
+                console.log('Play SOOP Live: PTT 應用檢查，已存在:', PTTApp.length > 0);
+
+                if (PTTApp.length < 1) {
+                    console.log('Play SOOP Live: 開始初始化 PTT 聊天應用');
+                    parent.css({
+                        position: 'relative'
+                    });
+                    InitApp(parent, WhiteTheme, true, messageposter, siteName);
+                    ChangeLog();
+                    console.log('Play SOOP Live: PTT 聊天應用初始化完成');
+                }
+            } else {
+                // 如果找不到主要選擇器，嘗試備用選擇器
+                const fallbackParent = $('.chat_title').closest('div[class*=chat],div[id*=chat]');
+                console.log('Play SOOP Live: 使用備用選擇器，找到', fallbackParent.length, '個元素');
+
+                if (fallbackParent.length > 0) {
+                    const PTTApp = $('#PTTChat', fallbackParent);
+
+                    if (PTTApp.length < 1) {
+                        console.log('Play SOOP Live: 使用備用方案初始化 PTT 聊天應用');
+                        fallbackParent.css({
+                            position: 'relative'
+                        });
+                        InitApp(fallbackParent, WhiteTheme, true, messageposter, siteName);
+                        ChangeLog();
+                    }
+                }
+            }
+        }
+    }
+    // CONCATENATED MODULE: ./src/SupportWebsite/sooplive/playsooplivefilter.js
+
+
+    const playsooplivefilter = InsFilter('SoopLive', /play\.sooplive\.com/, 'https://play.sooplive.com/', InitPlaySoopLive);
+    /* harmony default export */ var sooplive_playsooplivefilter = (playsooplivefilter);
     // EXTERNAL MODULE: ./src/scss/index.scss
     var scss = __webpack_require__(26);
     
@@ -10772,6 +10880,7 @@
       filters.push(blank_blankfilter);
       filters.push(twitch_twitchfilter);
       filters.push(sooplive_sooplivefilter);
+      filters.push(sooplive_playsooplivefilter);
       filters.push(nijimado_nijimadofilter); // filters.push(lineTVfilter);
     
       filters.push(holodex_hdfilter);
