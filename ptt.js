@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name              pttchatonyoutube
-// @version           3.1.4
+// @version           3.2.0
 // @author            Zoosewu, crimsonmoon9
 // @description       Connect ptt pushes to youtube chatroom
 // @match             https://www.youtube.com/*
@@ -30,6 +30,7 @@
 // @grant             GM_registerMenuCommand
 // @grant             GM_unregisterMenuCommand
 // @run-at            document-idle
+// @require           data:application/javascript,try{if(window.trustedTypes&&window.trustedTypes.createPolicy&&!window.trustedTypes.defaultPolicy){window.trustedTypes.createPolicy('default',{createHTML:function(s){return%20s},createScript:function(s){return%20s},createScriptURL:function(s){return%20s}})}}catch(e){}
 // @require           https://code.jquery.com/jquery-3.5.1.slim.min.js
 // @require           https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js
 // @require           https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.min.js
@@ -42,6 +43,20 @@
 // @downloadURL https://update.greasyfork.org/scripts/418469/pttchatonyoutube.user.js
 // @updateURL https://update.greasyfork.org/scripts/418469/pttchatonyoutube.meta.js
 // ==/UserScript==
+
+// YouTube 已強制 Trusted Types CSP，未註冊 default policy 前任何 innerHTML 賦值都會拋錯，
+// 導致 jQuery/Vue 建立 UI 失敗（#PTTChat 無法生成、LOGO 不出現）。
+(function () {
+  try {
+    if (window.trustedTypes && window.trustedTypes.createPolicy && !window.trustedTypes.defaultPolicy) {
+      window.trustedTypes.createPolicy('default', {
+        createHTML: function (input) { return input; },
+        createScript: function (input) { return input; },
+        createScriptURL: function (input) { return input; }
+      });
+    }
+  } catch (e) { /* 其他網站的 CSP 可能不允許 default policy，忽略即可 */ }
+})();
 
 /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
@@ -2849,7 +2864,13 @@
       }
     
       const noscript = document.createElement('noscript');
-      noscript.innerHTML = '<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MFFJTMF"  height="0" width="0" style="display:none;visibility:hidden"></iframe>';
+      const gtmframe = document.createElement('iframe');
+      gtmframe.src = 'https://www.googletagmanager.com/ns.html?id=GTM-MFFJTMF';
+      gtmframe.height = '0';
+      gtmframe.width = '0';
+      gtmframe.style.display = 'none';
+      gtmframe.style.visibility = 'hidden';
+      noscript.appendChild(gtmframe);
       const body = document.getElementsByTagName('body')[0];
     
       if (body) {
@@ -2869,9 +2890,33 @@
      * @param {Filter} filter
      */
     
+    function SetInitializationState(state, error) {
+      const root = document.documentElement;
+
+      if (!root) return;
+
+      root.setAttribute('data-pttchat-state', state);
+
+      if (error) {
+        const message = error && error.message ? error.name + ': ' + error.message : String(error);
+        root.setAttribute('data-pttchat-error', message.slice(0, 500));
+      } else {
+        root.removeAttribute('data-pttchat-error');
+      }
+    }
+
     function InitializeScript(msg, filter) {
-      filter.callback(msg, filter.siteName);
-      console.log('PTTChatOnYT initialize finished at', filter.siteName);
+      SetInitializationState('initializing-' + filter.siteName);
+
+      try {
+        filter.callback(msg, filter.siteName);
+        SetInitializationState('initialized-' + filter.siteName);
+        console.log('PTTChatOnYT initialize finished at', filter.siteName);
+      } catch (error) {
+        SetInitializationState('error-' + filter.siteName, error);
+        console.error('PTTChatOnYT initialize failed at', filter.siteName, error);
+        throw error;
+      }
     }
     
     function throwstring(site) {
@@ -2917,18 +2962,19 @@
       console.log('PTTChatOnYT Script started at ' + filter.siteName + ', href:', window.location.href);
       console.log('ownerorigin ' + filter.ownerOrigin);
     
-      switch (document.readyState) {
-        case 'complete':
-          InitializeScript(msg, filter);
-          break;
-    
-        default:
-          document.addEventListener('readystatechange', function () {
-            if (document.readyState === 'complete') {
-              InitializeScript(msg, filter);
-            }
-          });
-          break;
+      let initialized = false;
+
+      function StartInitialization() {
+        if (initialized) return;
+        initialized = true;
+        InitializeScript(msg, filter);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', StartInitialization, { once: true });
+        window.addEventListener('load', StartInitialization, { once: true });
+      } else {
+        StartInitialization();
       }
     }
     /**
@@ -2947,6 +2993,12 @@
     
         InitializePtt(msg);
       } else {
+        if (!isTopframe && /www\.youtube\.com/.test(window.location.hostname) && /^\/live_chat(?:_replay)?/.test(window.location.pathname)) {
+          if (!GM_getValue('menuCommand-enableExtention-Youtube', true)) return;
+          InitYoutubeChatFrameLauncher();
+          return;
+        }
+
         for (let i = 0; i < filters.length; i++) {
           const filter = filters[i];
           if (filter.siteRegExp.exec(window.location.href) === null) continue;
@@ -10128,11 +10180,104 @@
     // CONCATENATED MODULE: ./src/SupportWebsite/youtube/InitYT.js
     
     
-    
+    function EnsureYoutubeChatLauncher(chatDocument, clickHandler) {
+      const launcherId = 'PTTChatYoutubeBtn';
+      const styleId = 'PTTChatYoutubeBtnStyle';
+      const header = chatDocument.querySelector('yt-live-chat-header-renderer');
+
+      if (!header) return false;
+
+      if (!chatDocument.getElementById(styleId)) {
+        const style = chatDocument.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+          #${launcherId} {
+            align-items: center;
+            background: transparent;
+            border: 0;
+            border-radius: 50%;
+            color: var(--yt-live-chat-primary-text-color, #0f0f0f);
+            cursor: pointer;
+            display: inline-flex;
+            flex: none;
+            font-family: Roboto, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            height: 40px;
+            justify-content: center;
+            letter-spacing: -0.3px;
+            margin: 0;
+            padding: 0;
+            width: 40px;
+          }
+          #${launcherId}:hover,
+          #${launcherId}:focus-visible {
+            background: var(--yt-spec-10-percent-layer, rgba(127, 127, 127, 0.2));
+            outline: none;
+          }
+        `;
+        (chatDocument.head || chatDocument.documentElement).appendChild(style);
+      }
+
+      let launcher = chatDocument.getElementById(launcherId);
+
+      if (!launcher) {
+        launcher = chatDocument.createElement('button');
+        launcher.id = launcherId;
+        launcher.type = 'button';
+        launcher.textContent = 'PTT';
+        launcher.title = '展開 PTT 聊天室';
+        launcher.setAttribute('aria-label', '展開 PTT 聊天室');
+        launcher.setAttribute('aria-controls', 'PTTMain');
+      }
+
+      launcher.onclick = clickHandler;
+
+      const actionButtons = header.querySelector('#action-buttons');
+      const actionButtonsRect = actionButtons && actionButtons.getBoundingClientRect();
+
+      if (actionButtonsRect && actionButtonsRect.width > 0 && actionButtonsRect.height > 0) {
+        if (launcher.parentElement !== actionButtons || actionButtons.firstElementChild !== launcher) {
+          actionButtons.insertBefore(launcher, actionButtons.firstElementChild);
+        }
+      } else {
+        const anchorSelectors = ['#viewer-leaderboard-entry-point', '#live-chat-header-context-menu', '#close-button'];
+        const anchor = anchorSelectors.map(selector => header.querySelector(selector)).find(element => {
+          if (!element) return false;
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+
+        if (launcher.parentElement !== header || launcher.nextElementSibling !== anchor) {
+          header.insertBefore(launcher, anchor || null);
+        }
+      }
+
+      return true;
+    }
+
+    function InitYoutubeChatFrameLauncher() {
+      function NotifyTop(action) {
+        window.top.postMessage({
+          source: 'PTTChatOnYoutube',
+          action: action
+        }, window.location.origin);
+      }
+
+      function SyncLauncher() {
+        if (EnsureYoutubeChatLauncher(document, () => NotifyTop('toggle'))) NotifyTop('ready');
+      }
+
+      document.addEventListener('yt-navigate-finish', SyncLauncher);
+      window.setInterval(SyncLauncher, 1000);
+      SyncLauncher();
+    }
+
     function InitYT(messagePoster, siteName) {
       const msg = messagePoster; // Check Theme
     
       const WhiteTheme = ThemeCheck('html', 'rgb(249, 249, 249)');
+      InitYoutubeLauncher();
     
       (function CheckChatInstanced() {
         if (/www\.youtube\.com\/watch\?v=/.exec(window.location.href) === null) {
@@ -10164,7 +10309,72 @@
           setTimeout(CheckChatInstanced, 5000);
         }
       })();
-    
+
+      function InitYoutubeLauncher() {
+        let launcherReady = false;
+
+        function UpdateOriginalButton() {
+          const originalButton = document.querySelector('#PTTMainBtn');
+          const PTTMain = $('#PTTMain');
+
+          if (!originalButton || PTTMain.length === 0) return;
+
+          if (launcherReady && !PTTMain.hasClass('show') && !PTTMain.hasClass('collapsing')) {
+            originalButton.style.display = 'none';
+          } else {
+            originalButton.style.display = '';
+          }
+
+          if (!PTTMain.data('youtubeLauncherBound')) {
+            PTTMain.data('youtubeLauncherBound', true);
+            PTTMain.on('show.bs.collapse.pttYoutubeLauncher shown.bs.collapse.pttYoutubeLauncher', UpdateOriginalButton);
+            PTTMain.on('hidden.bs.collapse.pttYoutubeLauncher', UpdateOriginalButton);
+          }
+        }
+
+        function HandleLauncherMessage(event) {
+          if (event.origin !== window.location.origin || !event.data || event.data.source !== 'PTTChatOnYoutube') return;
+
+          if (event.data.action === 'ready') {
+            launcherReady = true;
+            UpdateOriginalButton();
+          } else if (event.data.action === 'toggle') {
+            const originalButton = document.querySelector('#PTTMainBtn');
+            if (originalButton) originalButton.click();
+          }
+        }
+
+        function SyncLauncher() {
+          const ChatContainer = $('#chat-container');
+          const iframe = $('iframe#chatframe', ChatContainer)[0] || $('iframe', ChatContainer)[0];
+
+          if (!iframe || $('#PTTChat', ChatContainer).length === 0) return;
+
+          const originalButton = document.querySelector('#PTTMainBtn');
+
+          try {
+            const chatDocument = iframe.contentDocument;
+
+            if (chatDocument && EnsureYoutubeChatLauncher(chatDocument, () => {
+              const button = document.querySelector('#PTTMainBtn');
+              if (button) button.click();
+            })) {
+              launcherReady = true;
+            }
+
+            UpdateOriginalButton();
+          } catch (error) {
+            if (originalButton) originalButton.style.display = '';
+            if (false) console.log(error);
+          }
+        }
+
+        window.addEventListener('message', HandleLauncherMessage);
+        document.addEventListener('yt-navigate-finish', SyncLauncher);
+        window.setInterval(SyncLauncher, 1000);
+        SyncLauncher();
+      }
+
       function getScriptTag() {
         try {
           return JSON.parse(document.querySelector('#microformat > player-microformat-renderer > script').innerHTML);
@@ -10756,12 +10966,9 @@
         function TryInsChat() {
     // 更精確地定位到您指定的聊天容器
     const parent = $('div[mode="Chat"][data-sentry-element="ChatTabWrapper"][data-sentry-component="ChatTab"]');
-    
-    console.log('SOOP Live: 搜尋聊天容器，找到', parent.length, '個元素');
-    
+
     if (parent.length > 0) {
       const PTTApp = $('#PTTChat', parent);
-      console.log('SOOP Live: PTT 應用檢查，已存在:', PTTApp.length > 0);
 
       if (PTTApp.length < 1) {
         console.log('SOOP Live: 開始初始化 PTT 聊天應用');
@@ -10776,8 +10983,7 @@
     } else {
       // 如果找不到主要選擇器，嘗試備用選擇器
       const fallbackParent = $('div[data-sentry-element="ChatTabWrapper"]');
-      console.log('SOOP Live: 使用備用選擇器，找到', fallbackParent.length, '個元素');
-      
+
       if (fallbackParent.length > 0) {
         const PTTApp = $('#PTTChat', fallbackParent);
         
@@ -10827,11 +11033,8 @@
             // play.sooplive.com 聊天面板:.chat_title 的父容器
             const parent = $('.chat_title').parent();
 
-            console.log('Play SOOP Live: 搜尋聊天容器，找到', parent.length, '個元素');
-
             if (parent.length > 0) {
                 const PTTApp = $('#PTTChat', parent);
-                console.log('Play SOOP Live: PTT 應用檢查，已存在:', PTTApp.length > 0);
 
                 if (PTTApp.length < 1) {
                     console.log('Play SOOP Live: 開始初始化 PTT 聊天應用');
@@ -10845,7 +11048,6 @@
             } else {
                 // 如果找不到主要選擇器，嘗試備用選擇器
                 const fallbackParent = $('.chat_title').closest('div[class*=chat],div[id*=chat]');
-                console.log('Play SOOP Live: 使用備用選擇器，找到', fallbackParent.length, '個元素');
 
                 if (fallbackParent.length > 0) {
                     const PTTApp = $('#PTTChat', fallbackParent);
